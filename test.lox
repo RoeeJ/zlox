@@ -1,0 +1,14 @@
+//this is a comment
+(( )){} //grouping stuff
+!*+-/=<> <= == != //operators
+"12345"
+12345
+
+for
+true
+tralala
+
+/* This is a multiline comment */
+
+
+"I am unterminated, like the terminator"
