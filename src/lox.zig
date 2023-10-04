@@ -10,7 +10,7 @@ pub fn run_file(filepath: []u8) !void {
     return run(try read_file(filepath));
 }
 
-pub fn read_file(filepath: []u8) ![]u8 {
+pub fn read_file(filepath: []const u8) ![]u8 {
     var file = try std.fs.cwd().openFile(filepath, .{});
     defer file.close();
     var stat = try file.stat();
@@ -24,9 +24,6 @@ pub fn run(buf: []u8) !void {
     try scanner.scan_tokens();
     if (scanner.had_error) {
         std.os.exit(65);
-    }
-    for (scanner.tokens.items) |token| {
-        std.debug.print("{s}\n", .{token.string()});
     }
 }
 

@@ -1,8 +1,11 @@
 const std = @import("std");
 const ast = @import("ast.zig");
+const lox = @import("lox.zig");
 const allocator = std.heap.c_allocator;
 
 const Token = ast.Token;
+const TokenLiteral = ast.TokenLiteral;
+const TokenLiteralType = ast.TokenLiteralType;
 const TokenType = ast.TokenType;
 
 const ScannerError = error{UnexpectedCharacter};
@@ -37,6 +40,11 @@ pub const Scanner = struct {
     line: usize,
 
     had_error: bool,
+    pub fn init_with_file(path: []const u8) !Scanner {
+        var file_data = try lox.read_file(path);
+        return Scanner.init(file_data);
+    }
+
     pub fn init(source: []u8) Scanner {
         return Scanner{
             .source = source,
@@ -61,7 +69,7 @@ pub const Scanner = struct {
         std.debug.print("[line {}] Error {s}: {s}\n", .{ line, where, message });
     }
 
-    pub fn scan_tokens(self: *@This()) ScannerError!void {
+    pub fn scan_tokens(self: *@This()) !void {
         while (!self.is_at_end()) {
             self.start = self.current;
             try self.scan_token();
@@ -106,7 +114,7 @@ pub const Scanner = struct {
             },
             inline else => {
                 if (is_digit(c)) {
-                    self.number();
+                    try self.number();
                 } else if (is_alpha(c)) {
                     self.identifier();
                 } else {
@@ -137,12 +145,15 @@ pub const Scanner = struct {
         self.add_token(ident_map.get(ident) orelse .IDENTIFIER);
     }
 
-    pub fn number(self: *@This()) void {
+    pub fn number(self: *@This()) !void {
+        var is_float = false;
+
         while (is_digit(self.peek())) {
             _ = self.next();
         }
 
         if (self.peek() == '.' and is_digit(self.peek_next())) {
+            is_float = true;
             _ = self.next();
         }
 
@@ -150,14 +161,29 @@ pub const Scanner = struct {
             _ = self.next();
         }
 
-        self.add_token_with_literal(.NUMBER, self.source[self.start..self.current]);
+        if (is_float) {
+            var num = try std.fmt.parseFloat(f32, self.source[self.start..self.current]);
+            self.add_token_with_literal(
+                .NUMBER,
+                TokenLiteral{ .Float = num },
+            );
+        } else {
+            var num = try std.fmt.parseInt(isize, self.source[self.start..self.current], 10);
+            self.add_token_with_literal(
+                .NUMBER,
+                TokenLiteral{ .Integer = num },
+            );
+        }
     }
 
     pub fn comment(self: *@This()) void {
         while (self.peek() != '\n' and !self.is_at_end()) {
             _ = self.next();
         }
-        self.add_token_with_literal(.COMMENT, self.source[self.start + 2 .. self.current]);
+        self.add_token_with_literal(
+            .COMMENT,
+            TokenLiteral{ .String = self.source[self.start + 2 .. self.current] },
+        );
     }
 
     pub fn block_comment(self: *@This()) void {
@@ -169,7 +195,10 @@ pub const Scanner = struct {
             return;
         }
         self.current += 2;
-        self.add_token_with_literal(.BLOCK_COMMENT, self.source[self.start + 2 .. self.current - 2]);
+        self.add_token_with_literal(
+            .BLOCK_COMMENT,
+            TokenLiteral{ .String = self.source[self.start + 2 .. self.current - 2] },
+        );
     }
 
     pub fn string(self: *@This()) void {
@@ -186,7 +215,10 @@ pub const Scanner = struct {
         _ = self.next();
 
         var str = self.source[self.start + 1 .. self.current - 1];
-        self.add_token_with_literal(.STRING, str);
+        self.add_token_with_literal(
+            .STRING,
+            TokenLiteral{ .String = str },
+        );
     }
 
     pub fn peek_next(self: @This()) u8 {
@@ -206,10 +238,10 @@ pub const Scanner = struct {
     }
 
     pub fn add_token(self: *@This(), token_type: TokenType) void {
-        self.add_token_with_literal(token_type, std.mem.zeroes([]u8));
+        self.add_token_with_literal(token_type, .Empty);
     }
 
-    pub fn add_token_with_literal(self: *@This(), token_type: TokenType, literal: []u8) void {
+    pub fn add_token_with_literal(self: *@This(), token_type: TokenType, literal: TokenLiteral) void {
         var text = self.source[self.start..self.current];
         self.tokens.append(Token{
             .token_type = token_type,
@@ -223,9 +255,8 @@ pub const Scanner = struct {
     }
 
     pub fn next(self: *@This()) u8 {
-        var c = self.source[self.current];
         self.current += 1;
-        return c;
+        return self.source[self.current - 1];
     }
 
     pub fn is_at_end(self: *@This()) bool {

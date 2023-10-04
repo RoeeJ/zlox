@@ -54,33 +54,46 @@ pub fn build(b: *std.Build) void {
 
     // Creates a step for unit testing. This only builds the test executable
     // but does not run it.
-    const unit_tests = b.addTest(.{
-        .root_source_file = .{ .path = "src/main.zig" },
-        .target = target,
-        .optimize = optimize,
-    });
-
-    const lox_tests = b.addTest(.{
-        .root_source_file = .{ .path = "src/lox_test.zig" },
-        .target = target,
-        .optimize = optimize,
-    });
-
-    const expr_tests = b.addTest(.{
-        .root_source_file = .{ .path = "src/ast_expr.zig" },
-        .target = target,
-        .optimize = optimize,
-    });
-
-    const run_unit_tests = b.addRunArtifact(unit_tests);
-    const run_lox_tests = b.addRunArtifact(lox_tests);
-    const run_expr_tests = b.addRunArtifact(expr_tests);
+    // const unit_tests = b.addTest(.{
+    //     .root_source_file = .{ .path = "src/main.zig" },
+    //     .target = target,
+    //     .optimize = optimize,
+    // });
+    //
+    // const lox_tests = b.addTest(.{
+    //     .root_source_file = .{ .path = "src/lox_test.zig" },
+    //     .target = target,
+    //     .optimize = optimize,
+    // });
+    //
+    // const expr_tests = b.addTest(.{
+    //     .root_source_file = .{ .path = "src/ast_expr.zig" },
+    //     .target = target,
+    //     .optimize = optimize,
+    // });
+    //
+    // const run_unit_tests = b.addRunArtifact(unit_tests);
+    // const run_lox_tests = b.addRunArtifact(lox_tests);
+    // const run_expr_tests = b.addRunArtifact(expr_tests);
 
     // Similar to creating the run step earlier, this exposes a `test` step to
     // the `zig build --help` menu, providing a way for the user to request
     // running the unit tests.
     const test_step = b.step("test", "Run unit tests");
-    test_step.dependOn(&run_unit_tests.step);
-    test_step.dependOn(&run_lox_tests.step);
-    test_step.dependOn(&run_expr_tests.step);
+    const files = [_][]u8{
+        @constCast("src/main.zig"),
+        @constCast("src/ast_expr.zig"),
+        @constCast("src/lox_test.zig"),
+        @constCast("src/parser.zig"),
+    };
+
+    for (files) |file| {
+        var tests = b.addTest(.{
+            .root_source_file = .{ .path = file },
+            .target = target,
+            .optimize = optimize,
+        });
+        const build_step = b.addRunArtifact(tests);
+        test_step.dependOn(&build_step.step);
+    }
 }
